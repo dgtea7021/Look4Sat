@@ -1,6 +1,7 @@
 package com.rtbishop.look4sat.presentation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -14,12 +15,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navigation
 import com.rtbishop.look4sat.R
 import com.rtbishop.look4sat.presentation.entries.EntriesScreen
 import com.rtbishop.look4sat.presentation.entries.EntriesViewModel
@@ -41,8 +44,14 @@ sealed class Screen(var title: String, var icon: Int, var route: String) {
 
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
-    Scaffold(bottomBar = { MainNavBar(navController = navController) }) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) { MainNavGraph(navController) }
+    val navBackStackEntry = navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry.value?.destination?.route
+    if (currentRoute == "initial") {
+        Box(modifier = Modifier.fillMaxSize()) { MainNavGraph(navController) }
+    } else {
+        Scaffold(bottomBar = { MainNavBar(navController = navController) }) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) { MainNavGraph(navController) }
+        }
     }
 }
 
@@ -66,9 +75,29 @@ private fun MainNavBar(navController: NavController) {
 
 @Composable
 private fun MainNavGraph(navController: NavHostController) {
+    NavHost(navController, startDestination = "login") {
+        loginGraph(navController)
+        mainGraph(navController)
+    }
+}
+
+private fun NavGraphBuilder.loginGraph(navController: NavHostController) {
+    val onSignInClicked = { navController.navigate("main") }
+
+    navigation(startDestination = "initial", route = "login") {
+        composable("initial") {
+            LoginScreen { onSignInClicked() }
+        }
+    }
+}
+
+private fun NavGraphBuilder.mainGraph(navController: NavController) {
+    val onSignOutClicked = { navController.navigate("login") }
+
     val radarRoute = "${Screen.Radar.route}?catNum={catNum}&aosTime={aosTime}"
     val radarArgs = listOf(navArgument("catNum") { defaultValue = 0 }, navArgument("aosTime") { defaultValue = 0L })
-    NavHost(navController, startDestination = Screen.Passes.route) {
+
+    navigation(startDestination = Screen.Passes.route, route = "main") {
         composable(Screen.Entries.route) {
             val viewModel = viewModel(EntriesViewModel::class.java, factory = EntriesViewModel.Factory)
             val navToPasses = { navController.navigate(Screen.Passes.route) }
@@ -79,7 +108,7 @@ private fun MainNavGraph(navController: NavHostController) {
             val navToRadar = { catNum: Int, aosTime: Long ->
                 navController.navigate("${Screen.Radar.route}?catNum=${catNum}&aosTime=${aosTime}")
             }
-            PassesScreen(viewModel.uiState.value, navToRadar)
+            PassesScreen(viewModel.uiState.value, navToRadar, onSignOutClicked)
         }
         composable(radarRoute, radarArgs) { RadarScreen() }
         composable(Screen.Map.route) { MapScreen() }
